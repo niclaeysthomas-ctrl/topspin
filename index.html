@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0b0e13">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Topspin">
+<link rel="manifest" href="manifest.webmanifest">
+<title>TOPSPIN — l'entraînement du pongiste</title>
+<style>
+  :root{
+    --bg:#0b0e13; --bg2:#12161d; --bg3:#1a202b; --line:#262e3c;
+    --txt:#eef1f5; --dim:#8d97a7;
+    --acc:#ff8a2e; --accd:#d96f1e; --blu:#3b74e0;
+    --ok:#25c47f; --bad:#f4506a;
+    --r:14px;
+    --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;overscroll-behavior:none}
+  #app{max-width:520px;margin:0 auto;min-height:100%;display:flex;flex-direction:column}
+  main{flex:1;padding:16px 16px 92px}
+  header{padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+  .logo{font-weight:900;font-size:19px;letter-spacing:.5px;font-style:italic}
+  .logo span{color:var(--acc)}
+  .logo em{font-style:normal;font-size:15px;margin-left:4px}
+  .hbadge{font-family:var(--mono);font-weight:700;font-size:11.5px;background:var(--bg2);border:1px solid var(--line);padding:6px 10px;border-radius:9px;color:var(--dim)}
+  .hbadge b{color:var(--acc)}
+
+  h1.page{font-size:23px;font-weight:900;font-style:italic;letter-spacing:.3px;margin-bottom:4px}
+  h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:1.6px;color:var(--dim);margin:18px 0 8px;display:flex;align-items:center;gap:10px}
+  h2.sec::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:14px;line-height:1.5}
+  .card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:12px}
+
+  .hero{background:linear-gradient(135deg,#14202e,#1c1710);border:1px solid #3a3020;border-top:3px solid var(--acc);border-radius:var(--r);padding:16px;margin-bottom:12px}
+  .hero .lab{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--acc);font-weight:800}
+  .hero .big{font-family:var(--mono);font-size:24px;font-weight:800;margin:4px 0 2px}
+  .hero .xs{font-size:12px;color:var(--dim)}
+
+  .coach{background:var(--bg2);border-left:3px solid var(--acc);border-radius:0 var(--r) var(--r) 0;padding:13px 14px;margin-bottom:12px;font-size:14px;line-height:1.55}
+  .coach b{color:var(--acc)}
+
+  .act{display:flex;align-items:center;gap:11px;background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:13px;margin-bottom:8px;cursor:pointer}
+  .act:active{background:var(--bg3)}
+  .act .ico{width:38px;height:38px;border-radius:11px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .act .t{flex:1;min-width:0}
+  .act .t b{display:block;font-size:14px}
+  .act .t small{color:var(--dim);font-size:12px;line-height:1.35;display:block;margin-top:1px}
+  .act .st{font-size:15px;flex-shrink:0;color:var(--dim);font-family:var(--mono);font-weight:700}
+  .act.done{opacity:.55}
+  .act.done .st{color:var(--ok)}
+  .act.hot{border-color:#3a3020;background:linear-gradient(135deg,#141a26,#1c1712)}
+
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 4px}
+  .chips button{background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:20px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer}
+  .chips button.on{background:var(--acc);color:#1c1000;border-color:var(--acc)}
+  .chips button.blu{border-color:#27406e}
+  .chips button.blu.on{background:var(--blu);color:#fff;border-color:var(--blu)}
+
+  .btn{display:block;border:none;border-radius:12px;padding:14px 20px;font-size:15px;font-weight:800;cursor:pointer;background:var(--acc);color:#1c1000;width:100%;text-align:center;margin-top:12px}
+  .btn:active{transform:scale(.97)}
+  .btn.ghost{background:var(--bg3);color:var(--txt);border:1px solid var(--line)}
+  .btn.blu{background:var(--blu);color:#fff}
+  .btn[disabled]{opacity:.4;pointer-events:none}
+  .danger{color:var(--bad);background:none;border:1px solid #55232c;border-radius:12px;width:100%;padding:12px;font-size:13px;font-weight:700;cursor:pointer;margin-top:10px}
+
+  #ov{position:fixed;inset:0;background:var(--bg);z-index:50;display:none;overflow-y:auto}
+  #ov.on{display:block}
+  #ov .inner{max-width:520px;margin:0 auto;padding:14px 16px 60px}
+  #ov .top{display:flex;align-items:center;gap:10px;margin-bottom:14px;position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:5}
+  #ov .top .x{width:36px;height:36px;border-radius:11px;background:var(--bg2);border:1px solid var(--line);color:var(--txt);font-size:16px;cursor:pointer;flex-shrink:0}
+  #ov .top b{font-size:16.5px;flex:1;font-weight:800}
+  #ov .top .timer{font-family:var(--mono);font-size:15px;font-weight:800;color:var(--acc);background:var(--bg2);border:1px solid #3a3020;padding:6px 11px;border-radius:9px}
+
+  .story p{font-size:14.5px;line-height:1.65;color:#dde1e8;margin-bottom:12px}
+  .meta{color:var(--dim);font-size:12.5px;margin-bottom:12px}
+  .tag{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;background:var(--bg3);color:var(--acc);border:1px solid #3a3020;padding:3px 8px;border-radius:6px;margin-right:6px}
+  .tag.b{color:var(--blu);border-color:#27406e}
+
+  .pt{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px 13px;font-size:13.5px;line-height:1.55;color:#d8dce3;margin-bottom:8px}
+  .pt b{color:var(--acc)}
+  .crit{background:#12201a;border:1px solid #1e4a36;border-radius:12px;padding:12px 13px;font-size:13.5px;line-height:1.5;margin-top:4px}
+  .crit b{color:var(--ok)}
+
+  textarea,input[type=text],input[type=number]{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:12px;color:var(--txt);padding:12px;font-size:14px;font-family:inherit;line-height:1.5}
+  textarea{min-height:80px;resize:vertical}
+  textarea:focus,input:focus{outline:none;border-color:var(--acc)}
+  label.f{display:block;font-size:12px;color:var(--dim);font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin:12px 0 5px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+  .result{text-align:center;padding:26px 10px}
+  .result .big{font-family:var(--mono);font-size:42px;font-weight:800}
+  .result p{color:var(--dim);font-size:14px;margin-top:8px;line-height:1.5}
+
+  nav{position:fixed;bottom:0;left:0;right:0;background:rgba(11,14,19,.95);backdrop-filter:blur(12px);border-top:1px solid var(--line);z-index:40}
+  nav .in{max-width:520px;margin:0 auto;display:flex}
+  nav button{flex:1;background:none;border:none;color:var(--dim);font-size:10.5px;font-weight:700;padding:9px 0 max(9px,env(safe-area-inset-bottom));cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+  nav button i{font-style:normal;font-size:19px}
+  nav button.on{color:var(--acc)}
+
+  .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  .stat{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:13px;text-align:center}
+  .stat b{font-family:var(--mono);font-size:21px;display:block}
+  .stat small{font-family:var(--mono);color:var(--dim);font-size:10px;letter-spacing:.6px}
+
+  .hm{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,12px);gap:3px;justify-content:start;margin-top:10px;overflow-x:auto;padding-bottom:4px}
+  .hm i{width:12px;height:12px;border-radius:3px;background:var(--bg3)}
+  .hm i.on{background:var(--acc)}
+  .hm i.today{outline:1px solid var(--dim)}
+
+  .form5{display:flex;gap:5px;justify-content:center;margin-top:4px}
+  .form5 i{width:22px;height:22px;border-radius:6px;font-style:normal;font-family:var(--mono);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .form5 i.w{background:#14352a;color:var(--ok)}
+  .form5 i.l{background:#341a22;color:var(--bad)}
+
+  .clockbig{font-family:var(--mono);font-size:56px;font-weight:800;text-align:center;margin:18px 0 6px;font-variant-numeric:tabular-nums}
+  .clocklab{text-align:center;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px}
+  .clocklab.work{color:var(--acc)} .clocklab.rest{color:var(--blu)}
+
+  .chk{display:flex;gap:10px;align-items:flex-start;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-bottom:7px;cursor:pointer;font-size:13.5px;line-height:1.45}
+  .chk input{margin-top:2px;accent-color:var(--acc);width:17px;height:17px;flex-shrink:0}
+  .chk.on{opacity:.55;text-decoration:line-through}
+
+  #toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(20px);background:#1c1712;border:1px solid #3a3020;color:var(--txt);padding:12px 18px;border-radius:12px;font-size:14px;font-weight:600;z-index:60;opacity:0;pointer-events:none;transition:all .25s;max-width:90%;text-align:center}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast b{color:var(--acc)}
+
+  .gift{background:linear-gradient(160deg,#14202e,#1c1712);border:1px solid #3a3020;border-radius:18px;padding:26px 20px;text-align:center}
+  .gift .ball{font-size:46px}
+  .gift h3{font-size:20px;font-weight:900;font-style:italic;margin:10px 0 8px}
+  .gift p{color:#d8dce3;font-size:14px;line-height:1.6}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo">TOP<span>SPIN</span> <em>🏓</em></div>
+    <div class="hbadge">SEM <b id="hweek">0/4</b></div>
+  </header>
+  <main id="main"></main>
+</div>
+
+<div id="ov"><div class="inner" id="ovin"></div></div>
+<div id="toast"></div>
+
+<nav><div class="in">
+  <button data-v="seance"><i>🏓</i>Séance</button>
+  <button data-v="exos"><i>📚</i>Exos</button>
+  <button data-v="matchs"><i>🏆</i>Matchs</button>
+  <button data-v="carnet"><i>📈</i>Carnet</button>
+  <button data-v="plus"><i>⚙️</i>Plus</button>
+</div></nav>
+
+<script src="data-tt.js"></script>
+<script>
+// ================= ÉTAT =================
+const KEY="topspin_v1";
+const DEF={name:"",goal:4,sessions:[],matches:[],check:{date:"",arr:[]},welcomed:false};
+let S=load();
+function load(){
+  let s={}; try{ s=JSON.parse(localStorage.getItem(KEY))||{}; }catch(e){}
+  const o=Object.assign({},DEF,s);
+  o.sessions=s.sessions||[]; o.matches=s.matches||[]; o.check=s.check||{date:"",arr:[]};
+  return o;
+}
+function save(){ localStorage.setItem(KEY,JSON.stringify(S)); }
+function today(){ return new Date().toISOString().slice(0,10); }
+function esc(x){ return String(x??"").replace(/</g,"&lt;"); }
+function drill(id){ return DRILLS.find(d=>d.id===id); }
+function cat(id){ return CATS.find(c=>c.id===id); }
+function mondayOf(dstr){ const d=new Date(dstr); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); return d.toISOString().slice(0,10); }
+function weekSessions(){ const mon=mondayOf(today()); return S.sessions.filter(x=>x.d>=mon); }
+function header(){ document.getElementById("hweek").innerHTML=weekSessions().length+"/"+S.goal; }
+let toastT=null;
+function toast(html){ const t=document.getElementById("toast"); t.innerHTML=html; t.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),3000); }
+
+// ================= NAV =================
+let view="seance";
+function nav(v){ view=v; document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v)); render(); window.scrollTo(0,0); }
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>nav(b.dataset.v));
+function render(){
+  document.getElementById("main").innerHTML=({seance:vSeance,exos:vExos,matchs:vMatchs,carnet:vCarnet,plus:vPlus})[view]();
+  header();
+}
+const ov=document.getElementById("ov"),ovin=document.getElementById("ovin");
+function openOv(html){ ovin.innerHTML=html; ov.classList.add("on"); ov.scrollTop=0; }
+function closeOv(){ ov.classList.remove("on"); stopClock(); render(); }
+function ovTop(title,timer){ return `<div class="top"><button class="x" onclick="closeOv()">✕</button><b>${title}</b>${timer?'<span class="timer" id="ovclock">00:00</span>':""}</div>`; }
+
+// ================= GÉNÉRATEUR DE SÉANCE =================
+let GEN={dur:90,focus:[]};
+const FOCUS=[["services","Services"],["remise","Remise"],["cd","Top CD"],["rv","Revers"],["jambes","Jambes"],["bloc","Bloc/contre"],["schemas","Schémas"],["match","Match"],["physique","Physique"]];
+function vSeance(){
+  const ws=weekSessions().length;
+  const name=S.name?`, ${S.name}`:"";
+  const coachTxt = ws>=S.goal
+    ? `Objectif hebdo atteint (<b>${ws}/${S.goal}</b>). Les séances bonus, c'est du bonus — écoute le corps.`
+    : ws===0
+    ? `Nouvelle semaine${name}. <b>${S.goal} séances</b> au programme — la première est toujours celle qui compte.`
+    : `<b>${ws}/${S.goal}</b> cette semaine. La régularité bat le talent quand le talent ne s'entraîne pas.`;
+  return `
+  <h1 class="page">Construire la séance</h1>
+  <div class="sub">Choisis la durée et le thème du jour — le plan se construit tout seul : échauffement, gammes, thème, situations, retour au calme.</div>
+  <div class="coach">${coachTxt}</div>
+  <div class="card">
+    <label class="f">Durée</label>
+    <div class="chips">${[45,60,90,120].map(d=>`<button class="${GEN.dur===d?"on":""}" onclick="GEN.dur=${d};render()">${d} min</button>`).join("")}</div>
+    <label class="f">Thème(s) du jour — 1 à 3</label>
+    <div class="chips">${FOCUS.map(f=>`<button class="blu ${GEN.focus.includes(f[0])?"on":""}" onclick="togFocus('${f[0]}')">${f[1]}</button>`).join("")}</div>
+    <button class="btn" ${GEN.focus.length?"":"disabled"} onclick="genSession()">Générer la séance</button>
+  </div>
+  <div class="act hot" onclick="quickLog()">
+    <div class="ico">✍️</div><div class="t"><b>Séance libre — juste noter</b><small>tu t'es entraîné sans plan ? Enregistre durée + contenu au carnet.</small></div>
+    <div class="st">›</div>
+  </div>
+  <div class="act" onclick="openChecklist()">
+    <div class="ico">✅</div><div class="t"><b>Checklist d'avant-match</b><small>la routine des 30 dernières minutes, à cocher.</small></div>
+    <div class="st">›</div>
+  </div>`;
+}
+function togFocus(f){
+  if(GEN.focus.includes(f)) GEN.focus=GEN.focus.filter(x=>x!==f);
+  else{ if(GEN.focus.length>=3) return toast("3 thèmes maximum — une séance qui vise tout ne travaille rien."); GEN.focus.push(f); }
+  render();
+}
+function pick(arr,n){ const a=[...arr].sort(()=>Math.random()-.5); return a.slice(0,n); }
+function genSession(){
+  const dur=GEN.dur, F=GEN.focus;
+  const plan=[];
+  const add=(label,drills,budget)=>{
+    if(!drills.length||budget<4) return;
+    const w=drills.reduce((s,d)=>s+d.dur,0);
+    drills.forEach(d=>plan.push({id:d.id,min:Math.max(4,Math.round(budget*d.dur/w)),label}));
+  };
+  add("Échauffement",[...pick(DRILLS.filter(d=>["e1","e2"].includes(d.id)),1),...pick(DRILLS.filter(d=>["e3","e4"].includes(d.id)),dur>=90?2:1)],Math.round(dur*0.15));
+  add("Gammes",pick(DRILLS.filter(d=>d.cat==="gammes"),dur>=90?2:1),Math.round(dur*0.12));
+  const themePool=DRILLS.filter(d=>F.includes(d.cat)&&!["e1","e2","e3","e4"].includes(d.id));
+  add("Thème du jour",pick(themePool,Math.min(dur>=120?4:dur>=90?3:2,themePool.length)),Math.round(dur*0.43));
+  const situ=[...pick(DRILLS.filter(d=>d.cat==="schemas"),1),...(dur>=90?pick(DRILLS.filter(d=>d.cat==="match"),1):[])];
+  add("Situations",situ,Math.round(dur*0.20));
+  add("Retour au calme",DRILLS.filter(d=>d.cat==="retour"),Math.round(dur*0.10));
+  AS={plan,done:[],start:Date.now(),focus:[...F],dur};
+  openGuided();
+}
+
+// ================= SÉANCE GUIDÉE =================
+let AS=null,CLK=null;
+function fmtClock(s){ return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0"); }
+function startClock(){ stopClock(); CLK=setInterval(()=>{ const el=document.getElementById("ovclock"); if(el&&AS) el.textContent=fmtClock(Math.floor((Date.now()-AS.start)/1000)); },1000); }
+function stopClock(){ if(CLK){clearInterval(CLK);CLK=null;} }
+function openGuided(){
+  if(!AS) return;
+  const total=AS.plan.reduce((s,b)=>s+b.min,0);
+  let lastLabel="";
+  openOv(ovTop("Séance en cours",true)+`
+    <div class="sub">${total} min planifiées · ${AS.focus.map(f=>FOCUS.find(x=>x[0]===f)[1]).join(" + ")}. Coche au fur et à mesure — touche un exercice pour revoir la consigne.</div>`+
+    AS.plan.map((b,i)=>{
+      const d=drill(b.id); const head=b.label!==lastLabel?`<h2 class="sec">${b.label}</h2>`:""; lastLabel=b.label;
+      return head+`<div class="act ${AS.done.includes(i)?"done":""}">
+        <div class="ico" onclick="event.stopPropagation();togBlock(${i})">${AS.done.includes(i)?"✅":cat(d.cat).icon}</div>
+        <div class="t" onclick="openDrill('${d.id}',true)"><b>${d.name}</b><small>${d.but}</small></div>
+        <div class="st" onclick="event.stopPropagation();togBlock(${i})">${b.min}′</div>
+      </div>`;
+    }).join("")+`
+    <button class="btn" onclick="finishSession()">Terminer la séance</button>
+    <button class="btn ghost" onclick="if(confirm('Abandonner sans enregistrer ?')){AS=null;closeOv()}">Abandonner</button>`);
+  startClock();
+}
+function togBlock(i){ if(AS.done.includes(i)) AS.done=AS.done.filter(x=>x!==i); else AS.done.push(i); openGuided(); }
+function finishSession(){
+  const elapsed=Math.max(5,Math.round((Date.now()-AS.start)/60000));
+  const doneN=AS.done.length,totalN=AS.plan.length;
+  openOv(ovTop("Debrief")+`
+    <div class="result"><div class="big">${doneN}/${totalN}</div><p>blocs cochés · ~${elapsed} min réelles</p></div>
+    <label class="f">Qualité de la séance</label>
+    <div class="chips" id="qchips">${["😮‍💨 Laborieuse","👍 Correcte","🔥 Excellente"].map((q,i)=>`<button onclick="pickQ(${i},this)">${q}</button>`).join("")}</div>
+    <label class="f">Le debrief 3 lignes — progrès / résistance / priorité prochaine</label>
+    <textarea id="sNote" placeholder="Ex : ouverture CD plus stable · la banane sort trop haute · prochaine séance = 15 min banane"></textarea>
+    <button class="btn" onclick="saveSession(${elapsed})">Enregistrer au carnet</button>`);
+}
+let QSEL=1;
+function pickQ(i,el){ QSEL=i; document.querySelectorAll("#qchips button").forEach(b=>b.classList.remove("on")); el.classList.add("on"); }
+function saveSession(min){
+  S.sessions.unshift({d:today(),min,focus:AS?AS.focus:[],q:QSEL,note:document.getElementById("sNote").value.trim()});
+  AS=null; save();
+  const ws=weekSessions().length;
+  toast(ws>=S.goal?`🏓 <b>Séance enregistrée.</b> Objectif hebdo atteint : ${ws}/${S.goal} 🔥`:`🏓 <b>Séance enregistrée.</b> ${ws}/${S.goal} cette semaine.`);
+  closeOv(); nav("carnet");
+}
+function quickLog(){
+  AS=null;
+  openOv(ovTop("Séance libre")+`
+    <label class="f">Durée (minutes)</label>
+    <input type="number" id="qlMin" value="60" min="10" max="300">
+    <label class="f">Thèmes travaillés</label>
+    <div class="chips">${FOCUS.map(f=>`<button class="blu" data-f="${f[0]}" onclick="this.classList.toggle('on')">${f[1]}</button>`).join("")}</div>
+    <label class="f">Qualité</label>
+    <div class="chips" id="qchips">${["😮‍💨 Laborieuse","👍 Correcte","🔥 Excellente"].map((q,i)=>`<button ${i===1?'class="on"':''} onclick="pickQ(${i},this)">${q}</button>`).join("")}</div>
+    <label class="f">Notes</label>
+    <textarea id="sNote" placeholder="Ce qui a été fait, ce qui a progressé…"></textarea>
+    <button class="btn" onclick="saveQuick()">Enregistrer</button>`);
+  QSEL=1;
+}
+function saveQuick(){
+  const min=parseInt(document.getElementById("qlMin").value)||60;
+  const focus=[...document.querySelectorAll('[data-f].on')].map(b=>b.dataset.f);
+  S.sessions.unshift({d:today(),min,focus,q:QSEL,note:document.getElementById("sNote").value.trim()});
+  save(); toast("🏓 <b>Enregistré.</b>"); closeOv(); nav("carnet");
+}
+
+// ================= EXOS =================
+function vExos(){
+  return `<h1 class="page">La bibliothèque</h1><div class="sub">${DRILLS.length} exercices de niveau compétition. Chaque exo a un objectif et un critère de réussite mesurable — pas de remplissage.</div>`+
+  CATS.filter(c=>!["echauf","retour"].includes(c.id)).concat(CATS.filter(c=>["echauf","retour"].includes(c.id))).map(c=>{
+    const n=DRILLS.filter(d=>d.cat===c.id).length;
+    return `<div class="act" onclick="openCat('${c.id}')">
+      <div class="ico">${c.icon}</div><div class="t"><b>${c.name}</b><small>${n} exercice${n>1?"s":""}</small></div>
+      <div class="st">›</div></div>`;
+  }).join("");
+}
+function openCat(cid){
+  const c=cat(cid);
+  openOv(ovTop(c.icon+" "+c.name)+DRILLS.filter(d=>d.cat===cid).map(d=>`
+    <div class="act" onclick="openDrill('${d.id}')">
+      <div class="ico">${c.icon}</div><div class="t"><b>${d.name}</b><small>${d.but}</small></div>
+      <div class="st">${d.dur}′</div>
+    </div>`).join(""));
+}
+function openDrill(id,fromSession){
+  const d=drill(id),c=cat(d.cat);
+  openOv(ovTop(d.name)+`
+    <div class="meta"><span class="tag">${c.name}</span><span class="tag b">${d.dur} min</span></div>
+    <div class="story"><p>${d.desc}</p></div>
+    <div class="pt"><b>Objectif :</b> ${d.but}</div>
+    ${d.variantes.length?`<div class="pt"><b>Variantes :</b><br>${d.variantes.map(v=>"— "+v).join("<br>")}</div>`:""}
+    <div class="crit"><b>Critère de réussite :</b> ${d.critere}</div>
+    ${fromSession?`<button class="btn" onclick="openGuided()">← Retour à la séance</button>`:`<button class="btn ghost" onclick="closeOv()">Fermer</button>`}`);
+}
+
+// ================= MATCHS =================
+function vMatchs(){
+  const M=S.matches;
+  const w=M.filter(m=>m.win).length,l=M.length-w;
+  const last5=M.slice(0,5);
+  let streak=0; for(const m of M){ if(m.win)streak++; else break; }
+  return `<h1 class="page">Matchs</h1><div class="sub">Un match non debriefé est un match à moitié perdu — même gagné.</div>
+  <div class="statgrid">
+    <div class="stat"><b>${w}–${l}</b><small>BILAN</small></div>
+    <div class="stat"><b>${M.length?Math.round(w/M.length*100)+"%":"—"}</b><small>VICTOIRES</small></div>
+    <div class="stat"><b>${streak>0?streak+" 🔥":"0"}</b><small>SÉRIE EN COURS</small></div>
+    <div class="stat"><small style="display:block;margin-bottom:5px">5 DERNIERS</small><div class="form5">${last5.length?last5.map(m=>`<i class="${m.win?"w":"l"}">${m.win?"V":"D"}</i>`).join(""):"<i>—</i>"}</div></div>
+  </div>
+  <button class="btn" onclick="openMatchForm()">＋ Enregistrer un match</button>
+  ${M.length?`<h2 class="sec">Historique</h2>`:""}
+  ${M.map((m,i)=>`
+    <div class="act" onclick="openMatch(${i})">
+      <div class="ico">${m.win?"✅":"❌"}</div>
+      <div class="t"><b>${esc(m.adv)} — ${m.me}·${m.opp}</b><small>${m.d.split("-").reverse().join("/")}${m.style?" · "+esc(m.style):""}</small></div>
+      <div class="st">›</div>
+    </div>`).join("")}`;
+}
+function openMatchForm(){
+  openOv(ovTop("Nouveau match")+`
+    <label class="f">Adversaire</label><input type="text" id="mAdv" placeholder="Nom (et classement si connu)">
+    <div class="row2">
+      <div><label class="f">Sets gagnés</label><input type="number" id="mMe" min="0" max="4" value="3"></div>
+      <div><label class="f">Sets perdus</label><input type="number" id="mOpp" min="0" max="4" value="1"></div>
+    </div>
+    <label class="f">Style adverse (tag)</label><input type="text" id="mStyle" placeholder="frappeur / défenseur / gaucher / picots…">
+    <label class="f">Ce qui a marché</label><textarea id="mPlus" placeholder="Schémas, services, choix qui ont payé…"></textarea>
+    <label class="f">À corriger</label><textarea id="mMoins" placeholder="Ce que l'adversaire a exploité, ce qui a craqué…"></textarea>
+    <button class="btn" onclick="saveMatch()">Enregistrer</button>`);
+}
+function saveMatch(){
+  const me=parseInt(document.getElementById("mMe").value)||0, opp=parseInt(document.getElementById("mOpp").value)||0;
+  const adv=document.getElementById("mAdv").value.trim()||"Adversaire";
+  S.matches.unshift({d:today(),adv,me,opp,win:me>opp,style:document.getElementById("mStyle").value.trim(),plus:document.getElementById("mPlus").value.trim(),moins:document.getElementById("mMoins").value.trim()});
+  save(); toast(me>opp?"🏆 <b>Victoire enregistrée.</b>":"📉 <b>Défaite enregistrée</b> — le debrief la rentabilise."); closeOv(); render();
+}
+function openMatch(i){
+  const m=S.matches[i];
+  openOv(ovTop((m.win?"✅ ":"❌ ")+esc(m.adv)+" — "+m.me+"·"+m.opp)+`
+    <div class="meta">${m.d.split("-").reverse().join("/")}${m.style?` · <span class="tag">${esc(m.style)}</span>`:""}</div>
+    ${m.plus?`<div class="pt"><b>Ce qui a marché :</b><br>${esc(m.plus)}</div>`:""}
+    ${m.moins?`<div class="pt"><b>À corriger :</b><br>${esc(m.moins)}</div>`:""}
+    ${!m.win?`<div class="coach">Relis la fiche <b>« Après une défaite »</b> dans Plus → Tactiques. Une défaite = un chantier, pas cinq.</div>`:""}
+    <button class="danger" onclick="if(confirm('Supprimer ce match ?')){S.matches.splice(${i},1);save();closeOv();}">Supprimer</button>`);
+}
+
+// ================= CARNET =================
+function heatmap(){
+  const days=S.sessions.map(s=>s.d);
+  const cells=[];const t=new Date();
+  for(let i=69;i>=0;i--){
+    const d=new Date(t-i*864e5).toISOString().slice(0,10);
+    cells.push(`<i class="${days.includes(d)?"on":""}${d===today()?" today":""}"></i>`);
+  }
+  return `<div class="hm">${cells.join("")}</div>`;
+}
+function vCarnet(){
+  const ws=weekSessions();
+  const wmin=ws.reduce((s,x)=>s+x.min,0);
+  const total=S.sessions.length, tmin=S.sessions.reduce((s,x)=>s+x.min,0);
+  return `<h1 class="page">Le carnet</h1><div class="sub">Ce qui se mesure progresse. Ce qui se note se retient.</div>
+  <div class="hero">
+    <div class="lab">Cette semaine</div>
+    <div class="big">${ws.length}/${S.goal} <span style="font-size:14px;color:var(--dim)">séances</span> · ${wmin}′</div>
+    <div class="xs">${ws.length>=S.goal?"Objectif atteint — la constance paie toujours.":"Objectif : "+S.goal+" séances (réglable dans Plus)."}</div>
+  </div>
+  <div class="statgrid">
+    <div class="stat"><b>${total}</b><small>SÉANCES TOTAL</small></div>
+    <div class="stat"><b>${Math.round(tmin/60)}h</b><small>VOLUME TOTAL</small></div>
+  </div>
+  <div class="card"><b style="font-size:14px">10 dernières semaines</b>${heatmap()}
+    <div class="xs" style="color:var(--dim);font-size:11px;margin-top:6px">Un carré orange = un jour entraîné.</div>
+  </div>
+  ${S.sessions.length?`<h2 class="sec">Dernières séances</h2>`:`<div class="coach">Aucune séance encore. Onglet <b>Séance</b> → génère ton premier entraînement.</div>`}
+  ${S.sessions.slice(0,15).map((s,i)=>`
+    <div class="act" onclick="openSession(${i})">
+      <div class="ico">${["😮‍💨","👍","🔥"][s.q??1]}</div>
+      <div class="t"><b>${s.d.split("-").reverse().join("/")} · ${s.min}′</b><small>${s.focus.map(f=>(FOCUS.find(x=>x[0]===f)||["",f])[1]).join(", ")||"libre"}${s.note?" · "+esc(s.note.slice(0,40))+(s.note.length>40?"…":""):""}</small></div>
+      <div class="st">›</div>
+    </div>`).join("")}`;
+}
+function openSession(i){
+  const s=S.sessions[i];
+  openOv(ovTop("Séance du "+s.d.split("-").reverse().join("/"))+`
+    <div class="meta"><span class="tag">${s.min} min</span><span class="tag b">${["laborieuse","correcte","excellente"][s.q??1]}</span></div>
+    <div class="pt"><b>Thèmes :</b> ${s.focus.map(f=>(FOCUS.find(x=>x[0]===f)||["",f])[1]).join(", ")||"libre"}</div>
+    ${s.note?`<div class="pt"><b>Debrief :</b><br>${esc(s.note)}</div>`:""}
+    <button class="danger" onclick="if(confirm('Supprimer cette séance ?')){S.sessions.splice(${i},1);save();closeOv();}">Supprimer</button>`);
+}
+
+// ================= PLUS =================
+function vPlus(){
+  return `<h1 class="page">Plus</h1><div class="sub">Tactique, routine, outils.</div>
+  <div class="act hot" onclick="openTactics()">
+    <div class="ico">♟️</div><div class="t"><b>Fiches tactiques</b><small>défenseur, picots, gaucher, money-time, routines… ${TACTICS.length} fiches</small></div><div class="st">›</div>
+  </div>
+  <div class="act hot" onclick="openChecklist()">
+    <div class="ico">✅</div><div class="t"><b>Checklist d'avant-match</b><small>${PREMATCH.length} points, remise à zéro chaque jour</small></div><div class="st">›</div>
+  </div>
+  <div class="act hot" onclick="openTimer()">
+    <div class="ico">⏱️</div><div class="t"><b>Timer intervalles</b><small>multiball, shadow, physique — travail/repos × rounds</small></div><div class="st">›</div>
+  </div>
+  <h2 class="sec">Réglages</h2>
+  <div class="card">
+    <label class="f">Ton prénom</label><input type="text" id="setName" value="${esc(S.name)}" onchange="S.name=this.value.trim();save();toast('Enregistré.')">
+    <label class="f">Objectif séances / semaine</label>
+    <div class="chips">${[2,3,4,5,6].map(g=>`<button class="${S.goal===g?"on":""}" onclick="S.goal=${g};save();render()">${g}</button>`).join("")}</div>
+  </div>
+  <button class="btn ghost" onclick="exportSave()">Exporter ma progression (copie JSON)</button>
+  <button class="btn ghost" onclick="importSave()">Importer une progression</button>
+  <button class="danger" onclick="if(confirm('Tout effacer ? Séances, matchs, réglages. Irréversible.')){localStorage.removeItem(KEY);location.reload()}">Réinitialiser</button>
+  <div style="height:14px"></div>
+  <div class="gift">
+    <div class="ball">🏓</div>
+    <h3>TOPSPIN</h3>
+    <p>Fabriquée sur mesure, hors ligne, sans compte, sans pub.<br>Un cadeau de <b style="color:var(--acc)">Thomas</b> — parce que le talent mérite des outils à sa hauteur.</p>
+  </div>`;
+}
+function exportSave(){
+  const data=JSON.stringify(S);
+  const done=()=>toast("📋 <b>Copié.</b> Colle ça dans une note — c'est ta sauvegarde.");
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(data).then(done,()=>prompt("Copie ce JSON :",data));
+  else prompt("Copie ce JSON :",data);
+}
+function importSave(){
+  const raw=prompt("Colle ici le JSON exporté :");
+  if(!raw) return;
+  try{ const s=JSON.parse(raw); if(!s.sessions) throw 0; localStorage.setItem(KEY,raw); location.reload(); }
+  catch(e){ toast("❌ JSON invalide."); }
+}
+function openTactics(){
+  openOv(ovTop("Fiches tactiques")+TACTICS.map(t=>`
+    <div class="act" onclick="openTactic('${t.id}')">
+      <div class="ico">${t.icon}</div><div class="t"><b>${t.title}</b></div><div class="st">›</div>
+    </div>`).join(""));
+}
+function openTactic(id){
+  const t=TACTICS.find(x=>x.id===id);
+  openOv(ovTop(t.icon+" "+t.title)+t.points.map((p,i)=>`<div class="pt"><b>${i+1}.</b> ${p}</div>`).join("")+`
+    <button class="btn ghost" onclick="openTactics()">← Toutes les fiches</button>`);
+}
+function openChecklist(){
+  if(S.check.date!==today()){ S.check={date:today(),arr:[]}; save(); }
+  openOv(ovTop("Avant-match — "+new Date().toLocaleDateString("fr-FR",{weekday:"long"}))+`
+    <div class="sub">Les 30 dernières minutes avant le premier point. Remise à zéro automatique chaque jour.</div>`+
+    PREMATCH.map((p,i)=>`
+    <label class="chk ${S.check.arr.includes(i)?"on":""}"><input type="checkbox" ${S.check.arr.includes(i)?"checked":""} onchange="togCheck(${i})"><span>${p}</span></label>`).join("")+
+    `<div class="coach" id="ckmsg">${S.check.arr.length===PREMATCH.length?"<b>Prêt.</b> Maintenant, premier set comme si c'était 9-9.":"Coche au fur et à mesure."}</div>`);
+}
+function togCheck(i){
+  if(S.check.arr.includes(i)) S.check.arr=S.check.arr.filter(x=>x!==i); else S.check.arr.push(i);
+  save(); openChecklist();
+}
+
+// ================= TIMER INTERVALLES =================
+let TT={on:false,work:30,rest:30,rounds:8,cur:0,phase:"work",left:0,iv:null};
+function beep(freq,ms){
+  try{ const ctx=beep.ctx||(beep.ctx=new (window.AudioContext||window.webkitAudioContext)());
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.frequency.value=freq; o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(.25,ctx.currentTime);
+    o.start(); o.stop(ctx.currentTime+ms/1000);
+  }catch(e){}
+}
+function openTimer(){
+  stopTT();
+  openOv(ovTop("Timer intervalles")+`
+    <div class="row2">
+      <div><label class="f">Travail (s)</label><input type="number" id="tW" value="${TT.work}" min="5" max="600"></div>
+      <div><label class="f">Repos (s)</label><input type="number" id="tR" value="${TT.rest}" min="0" max="600"></div>
+    </div>
+    <label class="f">Rounds</label><input type="number" id="tN" value="${TT.rounds}" min="1" max="50">
+    <div class="clockbig" id="ttClock">${fmtClock(TT.work)}</div>
+    <div class="clocklab" id="ttLab">PRÊT</div>
+    <button class="btn" id="ttBtn" onclick="startTT()">Démarrer</button>
+    <button class="btn ghost" onclick="stopTT();openTimer()">Réinitialiser</button>
+    <div class="coach">Multiball : 30/30 × 8. Shadow : 30/30 × 6. Physique : 40/20 × 10. Le bip change de ton entre travail et repos.</div>`);
+}
+function startTT(){
+  TT.work=parseInt(document.getElementById("tW").value)||30;
+  TT.rest=parseInt(document.getElementById("tR").value)||0;
+  TT.rounds=parseInt(document.getElementById("tN").value)||8;
+  TT.cur=1; TT.phase="work"; TT.left=TT.work; TT.on=true;
+  beep(880,180);
+  document.getElementById("ttBtn").textContent="Round 1 / "+TT.rounds;
+  TT.iv=setInterval(tickTT,1000);
+}
+function tickTT(){
+  TT.left--;
+  const c=document.getElementById("ttClock"),l=document.getElementById("ttLab"),b=document.getElementById("ttBtn");
+  if(!c){ stopTT(); return; }
+  if(TT.left<=0){
+    if(TT.phase==="work"&&TT.rest>0){ TT.phase="rest"; TT.left=TT.rest; beep(440,300); }
+    else{
+      if(TT.cur>=TT.rounds){ stopTT(); c.textContent="00:00"; l.textContent="TERMINÉ 🏁"; l.className="clocklab"; beep(880,150); setTimeout(()=>beep(880,150),200); setTimeout(()=>beep(1320,400),450); return; }
+      TT.cur++; TT.phase="work"; TT.left=TT.work; beep(880,180);
+    }
+  }
+  c.textContent=fmtClock(TT.left);
+  l.textContent=TT.phase==="work"?"TRAVAIL":"REPOS";
+  l.className="clocklab "+TT.phase;
+  if(b) b.textContent="Round "+TT.cur+" / "+TT.rounds;
+  if(TT.phase==="work"&&TT.left<=3&&TT.left>0) beep(660,90);
+}
+function stopTT(){ if(TT.iv){clearInterval(TT.iv);TT.iv=null;} TT.on=false; }
+
+// ================= BIENVENUE (CADEAU) =================
+function welcome(){
+  openOv(`<div style="height:8vh"></div>
+    <div class="gift">
+      <div class="ball">🎁</div>
+      <h3>Cette app est un cadeau.</h3>
+      <p>Elle a été fabriquée pour <b style="color:var(--acc)">toi</b> : ${DRILLS.length} exercices de niveau compétition, un générateur de séances, ton carnet, tes matchs, la tactique — le tout hors ligne, sans compte, sans pub, à toi pour toujours.</p>
+      <p style="margin-top:10px;color:var(--dim);font-size:12.5px">— Thomas 🏓</p>
+    </div>
+    <label class="f">Ton prénom, champion</label>
+    <input type="text" id="wName" placeholder="Prénom">
+    <button class="btn" onclick="S.name=document.getElementById('wName').value.trim();S.welcomed=true;save();closeOv();toast('Bienvenue'+(S.name?', '+S.name:'')+' 🏓')">C'est parti</button>`);
+}
+
+// ================= INIT =================
+if(location.protocol.startsWith("http")&&"serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+nav("seance");
+if(!S.welcomed) welcome();
+</script>
+</body>
+</html>
