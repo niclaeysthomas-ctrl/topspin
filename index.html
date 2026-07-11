@@ -180,15 +180,22 @@
 <script>
 // ================= ÉTAT =================
 const KEY="topspin_v1";
-const DEF={name:"",goal:4,sessions:[],matches:[],check:{date:"",arr:[]},welcomed:false,reflex:{f1:[],targets:[],choice:[],gonogo:[]}};
+const DEF={name:"",goal:4,sessions:[],matches:[],check:{date:"",arr:[]},welcomed:false,reflex:{f1:[],targets:[],choice:[],gonogo:[]},gear:{cd:{n:"",d:""},rv:{n:"",d:""}},as:null};
 let S=load();
 function load(){
   let s={}; try{ s=JSON.parse(localStorage.getItem(KEY))||{}; }catch(e){}
   const o=Object.assign({},DEF,s);
   o.sessions=s.sessions||[]; o.matches=s.matches||[]; o.check=s.check||{date:"",arr:[]};
   o.reflex=Object.assign({f1:[],targets:[],choice:[],gonogo:[]},s.reflex||{});
+  o.gear=Object.assign({cd:{n:"",d:""},rv:{n:"",d:""}},s.gear||{});
+  o.as=s.as||null;
   return o;
 }
+// Écran allumé pendant les séances et le timer (wake lock, si supporté)
+let WL=null;
+async function wakeOn(){ try{ if("wakeLock" in navigator) WL=await navigator.wakeLock.request("screen"); }catch(e){} }
+function wakeOff(){ try{ if(WL) WL.release(); }catch(e){} WL=null; }
+function buzz(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
 function save(){ localStorage.setItem(KEY,JSON.stringify(S)); }
 function today(){ return new Date().toISOString().slice(0,10); }
 function esc(x){ return String(x??"").replace(/</g,"&lt;"); }
@@ -210,7 +217,7 @@ function render(){
 }
 const ov=document.getElementById("ov"),ovin=document.getElementById("ovin");
 function openOv(html){ ovin.innerHTML=html; ov.classList.add("on"); ov.scrollTop=0; }
-function closeOv(){ ov.classList.remove("on"); stopClock(); rxStop(); render(); }
+function closeOv(){ ov.classList.remove("on"); stopClock(); rxStop(); stopTT(); wakeOff(); render(); }
 function ovTop(title,timer){ return `<div class="top"><button class="x" onclick="closeOv()">✕</button><b>${title}</b>${timer?'<span class="timer" id="ovclock">00:00</span>':""}</div>`; }
 
 // ================= GÉNÉRATEUR DE SÉANCE =================
@@ -228,6 +235,10 @@ function vSeance(){
   <h1 class="page">Construire la séance</h1>
   <div class="sub">Choisis la durée et le thème du jour — le plan se construit tout seul : échauffement, gammes, thème, situations, retour au calme.</div>
   <div class="coach">${coachTxt}</div>
+  ${AS?`<div class="act hot" onclick="openGuided()">
+    <div class="ico">${AS.start?"▶️":"📋"}</div><div class="t"><b>${AS.start?"Séance en cours — reprendre":"Plan de séance prêt — le voir"}</b><small>${AS.plan.length} blocs · ${AS.done.length} coché${AS.done.length>1?"s":""}${AS.start?"":" · chrono pas encore démarré"}</small></div>
+    <div class="st">›</div>
+  </div>`:""}
   <div class="card">
     <label class="f">Durée</label>
     <div class="chips">${[45,60,90,120].map(d=>`<button class="${GEN.dur===d?"on":""}" onclick="GEN.dur=${d};render()">${d} min</button>`).join("")}</div>
@@ -265,12 +276,14 @@ function genSession(){
   const situ=[...pick(DRILLS.filter(d=>d.cat==="schemas"),1),...(dur>=90?pick(DRILLS.filter(d=>d.cat==="match"),1):[])];
   add("Situations",situ,Math.round(dur*0.20));
   add("Retour au calme",DRILLS.filter(d=>d.cat==="retour"),Math.round(dur*0.10));
-  AS={plan,done:[],start:Date.now(),focus:[...F],dur};
+  AS={plan,done:[],start:null,focus:[...F],dur};
+  persistAS();
   openGuided();
 }
+function persistAS(){ S.as=AS; save(); }
 
 // ================= SÉANCE GUIDÉE =================
-let AS=null,CLK=null;
+let AS=S.as||null,CLK=null;
 function fmtClock(s){ return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0"); }
 function startClock(){ stopClock(); CLK=setInterval(()=>{ const el=document.getElementById("ovclock"); if(el&&AS) el.textContent=fmtClock(Math.floor((Date.now()-AS.start)/1000)); },1000); }
 function stopClock(){ if(CLK){clearInterval(CLK);CLK=null;} }
@@ -278,8 +291,8 @@ function openGuided(){
   if(!AS) return;
   const total=AS.plan.reduce((s,b)=>s+b.min,0);
   let lastLabel="";
-  openOv(ovTop("Séance en cours",true)+`
-    <div class="sub">${total} min planifiées · ${AS.focus.map(f=>FOCUS.find(x=>x[0]===f)[1]).join(" + ")}. Coche au fur et à mesure — touche un exercice pour revoir la consigne.</div>`+
+  openOv(ovTop(AS.start?"Séance en cours":"Le plan de séance",!!AS.start)+`
+    <div class="sub">${total} min planifiées · ${AS.focus.map(f=>FOCUS.find(x=>x[0]===f)[1]).join(" + ")}. ${AS.start?"Coche au fur et à mesure — touche un exercice pour revoir la consigne.":"Relis le plan, régénère si besoin — le chrono ne démarre que quand TOI tu démarres."}</div>`+
     AS.plan.map((b,i)=>{
       const d=drill(b.id); const head=b.label!==lastLabel?`<h2 class="sec">${b.label}</h2>`:""; lastLabel=b.label;
       return head+`<div class="act ${AS.done.includes(i)?"done":""}">
@@ -287,14 +300,21 @@ function openGuided(){
         <div class="t" onclick="openDrill('${d.id}',true)"><b>${d.name}</b><small>${d.but}</small></div>
         <div class="st" onclick="event.stopPropagation();togBlock(${i})">${b.min}′</div>
       </div>`;
-    }).join("")+`
-    <button class="btn" onclick="finishSession()">Terminer la séance</button>
-    <button class="btn ghost" onclick="if(confirm('Abandonner sans enregistrer ?')){AS=null;closeOv()}">Abandonner</button>`);
-  startClock();
+    }).join("")+
+    (AS.start
+      ?`<button class="btn" onclick="finishSession()">Terminer la séance</button>`
+      :`<button class="btn" onclick="startGuided()">🏁 Démarrer — chrono + écran allumé</button>
+        <button class="btn ghost" onclick="regenAS()">🔀 Régénérer le plan</button>`)
+    +`<button class="btn ghost" onclick="if(confirm('Abandonner cette séance sans l\\'enregistrer ?')){AS=null;S.as=null;save();closeOv()}">Abandonner</button>`);
+  if(AS.start){ startClock(); wakeOn(); }
 }
-function togBlock(i){ if(AS.done.includes(i)) AS.done=AS.done.filter(x=>x!==i); else AS.done.push(i); openGuided(); }
+function startGuided(){ AS.start=Date.now(); persistAS(); openGuided(); }
+function regenAS(){ GEN.dur=AS.dur; GEN.focus=[...AS.focus]; genSession(); }
+function togBlock(i){ if(AS.done.includes(i)) AS.done=AS.done.filter(x=>x!==i); else AS.done.push(i); persistAS(); openGuided(); }
 function finishSession(){
-  const elapsed=Math.max(5,Math.round((Date.now()-AS.start)/60000));
+  const planned=AS.plan.reduce((s,b)=>s+b.min,0);
+  const elapsed=AS.start?Math.min(planned*2,Math.max(5,Math.round((Date.now()-AS.start)/60000))):planned;
+  wakeOff();
   const doneN=AS.done.length,totalN=AS.plan.length;
   openOv(ovTop("Debrief")+`
     <div class="result"><div class="big">${doneN}/${totalN}</div><p>blocs cochés · ~${elapsed} min réelles</p></div>
@@ -308,13 +328,12 @@ let QSEL=1;
 function pickQ(i,el){ QSEL=i; document.querySelectorAll("#qchips button").forEach(b=>b.classList.remove("on")); el.classList.add("on"); }
 function saveSession(min){
   S.sessions.unshift({d:today(),min,focus:AS?AS.focus:[],q:QSEL,note:document.getElementById("sNote").value.trim()});
-  AS=null; save();
+  AS=null; S.as=null; save();
   const ws=weekSessions().length;
   toast(ws>=S.goal?`🏓 <b>Séance enregistrée.</b> Objectif hebdo atteint : ${ws}/${S.goal} 🔥`:`🏓 <b>Séance enregistrée.</b> ${ws}/${S.goal} cette semaine.`);
   closeOv(); nav("carnet");
 }
 function quickLog(){
-  AS=null;
   openOv(ovTop("Séance libre")+`
     <label class="f">Durée (minutes)</label>
     <input type="number" id="qlMin" value="60" min="10" max="300">
@@ -377,6 +396,12 @@ function vMatchs(){
     <div class="stat"><small style="display:block;margin-bottom:5px">5 DERNIERS</small><div class="form5">${last5.length?last5.map(m=>`<i class="${m.win?"w":"l"}">${m.win?"V":"D"}</i>`).join(""):"<i>—</i>"}</div></div>
   </div>
   <button class="btn" onclick="openMatchForm()">＋ Enregistrer un match</button>
+  ${(()=>{ // bilan par style adverse
+    const by={};
+    M.forEach(m=>{ const s=(m.style||"").trim().toLowerCase(); if(!s) return; by[s]=by[s]||[0,0]; by[s][m.win?0:1]++; });
+    const rows=Object.entries(by).sort((a,b)=>(b[1][0]+b[1][1])-(a[1][0]+a[1][1])).slice(0,5);
+    return rows.length?`<h2 class="sec">Par style adverse</h2><div class="chips">${rows.map(([s,r])=>`<button class="blu" style="pointer-events:none">${esc(s)} <b style="color:${r[0]>=r[1]?"var(--ok)":"var(--bad)"}">${r[0]}V–${r[1]}D</b></button>`).join("")}</div>`:"";
+  })()}
   ${M.length?`<h2 class="sec">Historique</h2>`:""}
   ${M.map((m,i)=>`
     <div class="act" onclick="openMatch(${i})">
@@ -387,7 +412,8 @@ function vMatchs(){
 }
 function openMatchForm(){
   openOv(ovTop("Nouveau match")+`
-    <label class="f">Adversaire</label><input type="text" id="mAdv" placeholder="Nom (et classement si connu)">
+    <label class="f">Adversaire</label><input type="text" id="mAdv" placeholder="Nom (et classement si connu)" list="advL">
+    <datalist id="advL">${[...new Set(S.matches.map(m=>m.adv))].map(a=>`<option value="${esc(a)}">`).join("")}</datalist>
     <div class="row2">
       <div><label class="f">Sets gagnés</label><input type="number" id="mMe" min="0" max="4" value="3"></div>
       <div><label class="f">Sets perdus</label><input type="number" id="mOpp" min="0" max="4" value="1"></div>
@@ -405,8 +431,11 @@ function saveMatch(){
 }
 function openMatch(i){
   const m=S.matches[i];
+  const h2h=S.matches.filter(x=>x.adv.trim().toLowerCase()===m.adv.trim().toLowerCase());
+  const hw=h2h.filter(x=>x.win).length;
   openOv(ovTop((m.win?"✅ ":"❌ ")+esc(m.adv)+" — "+m.me+"·"+m.opp)+`
     <div class="meta">${m.d.split("-").reverse().join("/")}${m.style?` · <span class="tag">${esc(m.style)}</span>`:""}</div>
+    ${h2h.length>1?`<div class="pt"><b>Face-à-face :</b> ${hw}V–${h2h.length-hw}D contre ${esc(m.adv)}. Relis les debriefs précédents avant de le rejouer :<br>${h2h.filter(x=>x!==m&&x.moins).slice(0,2).map(x=>"— "+x.d.split("-").reverse().slice(0,2).join("/")+" : "+esc(x.moins)).join("<br>")||"— (pas de notes sur les autres matchs)"}</div>`:""}
     ${m.plus?`<div class="pt"><b>Ce qui a marché :</b><br>${esc(m.plus)}</div>`:""}
     ${m.moins?`<div class="pt"><b>À corriger :</b><br>${esc(m.moins)}</div>`:""}
     ${!m.win?`<div class="coach">Relis la fiche <b>« Après une défaite »</b> dans Plus → Tactiques. Une défaite = un chantier, pas cinq.</div>`:""}
@@ -422,6 +451,19 @@ function heatmap(){
     cells.push(`<i class="${days.includes(d)?"on":""}${d===today()?" today":""}"></i>`);
   }
   return `<div class="hm">${cells.join("")}</div>`;
+}
+function volChart(){
+  const wk={};
+  S.sessions.forEach(s=>{ const m=mondayOf(s.d); wk[m]=(wk[m]||0)+s.min; });
+  const mons=[...Array(8)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-7*(7-i)); return mondayOf(d.toISOString().slice(0,10)); });
+  const vals=mons.map(m=>wk[m]||0), mx=Math.max(...vals,60);
+  return `<div style="display:flex;align-items:flex-end;gap:6px;height:74px;margin-top:10px">
+    ${vals.map((v,i)=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px">
+      <div style="width:100%;height:${Math.round(v/mx*54)+2}px;background:${i===7?"var(--acc)":"var(--bg3)"};border:1px solid ${i===7?"var(--accd)":"var(--line)"};border-radius:4px 4px 0 0"></div>
+      <small style="font-family:var(--mono);font-size:9px;color:var(--dim)">${v||"·"}</small>
+    </div>`).join("")}
+  </div>
+  <div class="xs" style="color:var(--dim);font-size:11px;margin-top:4px">Minutes par semaine, 8 dernières — la barre orange, c'est cette semaine.</div>`;
 }
 function vCarnet(){
   const ws=weekSessions();
@@ -440,6 +482,7 @@ function vCarnet(){
   <div class="card"><b style="font-size:14px">10 dernières semaines</b>${heatmap()}
     <div class="xs" style="color:var(--dim);font-size:11px;margin-top:6px">Un carré orange = un jour entraîné.</div>
   </div>
+  <div class="card"><b style="font-size:14px">Volume hebdomadaire</b>${volChart()}</div>
   ${S.sessions.length?`<h2 class="sec">Dernières séances</h2>`:`<div class="coach">Aucune séance encore. Onglet <b>Séance</b> → génère ton premier entraînement.</div>`}
   ${S.sessions.slice(0,15).map((s,i)=>`
     <div class="act" onclick="openSession(${i})">
@@ -469,6 +512,19 @@ function vPlus(){
   <div class="act hot" onclick="openTimer()">
     <div class="ico">⏱️</div><div class="t"><b>Timer intervalles</b><small>multiball, shadow, physique — travail/repos × rounds</small></div><div class="st">›</div>
   </div>
+  <h2 class="sec">Matériel</h2>
+  <div class="card">
+    ${["cd","rv"].map(f=>{
+      const g=S.gear[f], age=g.d?Math.floor((Date.now()-new Date(g.d))/864e5):null;
+      const badge=age===null?"":age>120?`<b style="color:var(--bad)">posé il y a ${age} j — à changer</b>`:age>75?`<b style="color:var(--acc)">posé il y a ${age} j — surveille l'accroche</b>`:`<b style="color:var(--ok)">posé il y a ${age} j</b>`;
+      return `<label class="f">Revêtement ${f==="cd"?"coup droit":"revers"} ${badge?"· "+badge:""}</label>
+      <div class="row2">
+        <input type="text" placeholder="Modèle (ex. Tenergy 05)" value="${esc(g.n)}" onchange="S.gear.${f}.n=this.value.trim();save()">
+        <input type="date" value="${g.d}" onchange="S.gear.${f}.d=this.value;save();render()">
+      </div>`;
+    }).join("")}
+    <div class="xs" style="color:var(--dim);font-size:11.5px;margin-top:10px">Un revêtement perd son accroche bien avant d'avoir l'air usé. Note la date de pose, l'app surveille.</div>
+  </div>
   <h2 class="sec">Réglages</h2>
   <div class="card">
     <label class="f">Ton prénom</label><input type="text" id="setName" value="${esc(S.name)}" onchange="S.name=this.value.trim();save();toast('Enregistré.')">
@@ -483,6 +539,7 @@ function vPlus(){
     <div class="ball">🏓</div>
     <h3>TOPSPIN</h3>
     <p>Fabriquée sur mesure, hors ligne, sans compte, sans pub.<br>Un cadeau de <b style="color:var(--acc)">Thomas</b> — parce que le talent mérite des outils à sa hauteur.</p>
+    <p style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:10px">v3</p>
   </div>`;
 }
 function exportSave(){
@@ -550,7 +607,7 @@ function startTT(){
   TT.rest=parseInt(document.getElementById("tR").value)||0;
   TT.rounds=parseInt(document.getElementById("tN").value)||8;
   TT.cur=1; TT.phase="work"; TT.left=TT.work; TT.on=true;
-  beep(880,180);
+  wakeOn(); beep(880,180); buzz(120);
   document.getElementById("ttBtn").textContent="Round 1 / "+TT.rounds;
   TT.iv=setInterval(tickTT,1000);
 }
@@ -559,10 +616,10 @@ function tickTT(){
   const c=document.getElementById("ttClock"),l=document.getElementById("ttLab"),b=document.getElementById("ttBtn");
   if(!c){ stopTT(); return; }
   if(TT.left<=0){
-    if(TT.phase==="work"&&TT.rest>0){ TT.phase="rest"; TT.left=TT.rest; beep(440,300); }
+    if(TT.phase==="work"&&TT.rest>0){ TT.phase="rest"; TT.left=TT.rest; beep(440,300); buzz([60,60,60]); }
     else{
-      if(TT.cur>=TT.rounds){ stopTT(); c.textContent="00:00"; l.textContent="TERMINÉ 🏁"; l.className="clocklab"; beep(880,150); setTimeout(()=>beep(880,150),200); setTimeout(()=>beep(1320,400),450); return; }
-      TT.cur++; TT.phase="work"; TT.left=TT.work; beep(880,180);
+      if(TT.cur>=TT.rounds){ stopTT(); wakeOff(); c.textContent="00:00"; l.textContent="TERMINÉ 🏁"; l.className="clocklab"; beep(880,150); setTimeout(()=>beep(880,150),200); setTimeout(()=>beep(1320,400),450); buzz([150,80,150,80,300]); return; }
+      TT.cur++; TT.phase="work"; TT.left=TT.work; beep(880,180); buzz(120);
     }
   }
   c.textContent=fmtClock(TT.left);
@@ -589,9 +646,18 @@ const RXGAMES=[
  {id:"choice",ico:"🧭",name:"Choix CD / Revers",desc:"Bleue → moitié gauche (revers). Orange → moitié droite (coup droit). Décider ET réagir — le réflexe du pongiste.",fn:"playChoice"},
  {id:"gonogo",ico:"🚦",name:"Go / No-Go",desc:"Verte : frappe vite. Rouge : ne bouge pas. L'art de ne pas attaquer la mauvaise balle.",fn:"playGng"}
 ];
+function spark(g){
+  const a=S.reflex[g].slice(0,15).reverse().map(x=>x.v);
+  if(a.length<3) return "";
+  const mn=Math.min(...a),mx=Math.max(...a),rg=(mx-mn)||1;
+  const pts=a.map((v,i)=>((i/(a.length-1))*100).toFixed(1)+","+(24-((v-mn)/rg)*18).toFixed(1)).join(" ");
+  return `<svg viewBox="0 0 100 28" style="width:100%;height:28px;margin-top:9px" preserveAspectRatio="none">
+    <polyline points="${pts}" fill="none" stroke="var(--acc)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg><div style="font-family:var(--mono);font-size:9.5px;color:var(--dim);letter-spacing:.4px">${a.length} DERNIERS — PLUS BAS = PLUS RAPIDE</div>`;
+}
 function vReflex(){
   return `<h1 class="page">Salle de réflexes</h1>
-  <div class="sub">Le temps de réaction se travaille comme un coup droit : souvent, peu, mesuré. 2-3 minutes par jour — et regarde la moyenne descendre.</div>`+
+  <div class="sub">Le temps de réaction se travaille comme un coup droit : souvent, peu, mesuré. 2-3 minutes par jour — et regarde la courbe descendre.</div>`+
   RXGAMES.map(g=>{
     const st=rstat(g.id);
     return `<div class="card" style="padding:14px">
@@ -605,14 +671,29 @@ function vReflex(){
         <span>MOY. (10) <b>${st?st.avg+" ms":"—"}</b></span>
         <span>ESSAIS <b>${st?st.n:0}</b></span>
       </div>
+      ${spark(g.id)}
       <button class="btn" style="margin-top:10px;padding:11px" onclick="${g.fn}()">Jouer</button>
     </div>`;
   }).join("");
 }
+function rxCount(cb){
+  const a=document.getElementById("arena"); if(!a||!RX) return;
+  RX.phase="count";
+  const div=document.createElement("div"); div.className="msg";
+  div.innerHTML=`<div class="big2" id="rxcd">3</div>`;
+  a.appendChild(div);
+  let k=3;
+  RX.iv=setInterval(()=>{
+    if(!document.getElementById("rxcd")){ clearInterval(RX.iv); return; }
+    k--;
+    if(k<=0){ clearInterval(RX.iv); div.remove(); buzz(60); cb(); }
+    else document.getElementById("rxcd").textContent=k;
+  },700);
+}
 function verdictRT(ms){ return ms<200?"Réflexe d'élite.":ms<250?"Très rapide.":ms<300?"Solide.":ms<380?"Correct — ça se travaille.":"Réveille-toi, la balle est déjà passée."; }
 
 // ---- Feu de F1 ----
-function playF1(){ rxStop(); RX={g:"f1",tries:[],fs:0,phase:"ready"}; f1Draw("—","Touche la zone pour armer les feux",""); }
+function playF1(){ rxStop(); RX={g:"f1",tries:[],fs:0,phase:"ready",prevBest:(rstat("f1")||{best:Infinity}).best}; f1Draw("—","Touche la zone pour armer les feux",""); }
 function f1Draw(val,hint,cls){
   openOv(ovTop("🏎️ Feu de F1")+`
     <div class="sub">Tape à l'extinction des 5 feux. Taper avant = faux départ. <b>5 départs par session.</b></div>
@@ -658,7 +739,7 @@ function f1Tap(){
 }
 function f1End(){
   const best=Math.min(...RX.tries), avg=Math.round(RX.tries.reduce((a,b)=>a+b,0)/RX.tries.length);
-  const rec=rstat("f1").best===best&&rstat("f1").n>5;
+  const rec=best<RX.prevBest;
   openOv(ovTop("🏎️ Résultat")+`
     <div class="result"><div class="big">${best} ms</div>
     <p>meilleur départ · moyenne ${avg} ms · ${RX.fs} faux départ${RX.fs>1?"s":""}${rec?" · <b style='color:var(--acc)'>RECORD 🏆</b>":""}</p>
@@ -676,9 +757,9 @@ function playTgt(){
     <div class="arena" id="arena" onpointerdown="tgtBg()"></div>
     <div class="rxhud" id="thud"><span>BALLES <b>0/20</b></span><span>À CÔTÉ <b>0</b></span></div>
     <button class="btn ghost" onclick="closeOv()">Quitter</button>`);
-  setTimeout(tgtNext,400);
+  rxCount(tgtNext);
 }
-function tgtBg(){ if(RX&&RX.g==="t"&&RX.n<RX.total){ RX.miss++; tgtHud(); } }
+function tgtBg(){ if(RX&&RX.g==="t"&&RX.n<RX.total&&document.querySelector(".tgt")){ RX.miss++; tgtHud(); } }
 function tgtHud(){ const h=document.getElementById("thud"); if(h&&RX) h.innerHTML=`<span>BALLES <b>${RX.n}/${RX.total}</b></span><span>À CÔTÉ <b>${RX.miss}</b></span>`; }
 function tgtNext(){
   if(!RX||RX.g!=="t") return;
@@ -714,7 +795,7 @@ function playChoice(){
     </div>
     <div class="rxhud" id="chud"><span>BALLES <b>0/20</b></span><span>ERREURS <b>0</b></span></div>
     <button class="btn ghost" onclick="closeOv()">Quitter</button>`);
-  choiceGap();
+  rxCount(choiceGap);
 }
 function chud(){ const h=document.getElementById("chud"); if(h&&RX) h.innerHTML=`<span>BALLES <b>${RX.n}/${RX.total}</b></span><span>ERREURS <b>${RX.err}</b></span>`; }
 function choiceGap(){
@@ -733,7 +814,7 @@ function choiceGap(){
   },500+Math.random()*1100);
 }
 function choiceTap(e){
-  if(!RX||RX.g!=="c") return;
+  if(!RX||RX.g!=="c"||RX.phase==="count") return;
   if(RX.phase==="gap"){ RX.err++; chud(); return; }
   const a=document.getElementById("arena");
   const mid=a.getBoundingClientRect().left+a.clientWidth/2;
@@ -743,8 +824,8 @@ function choiceTap(e){
   RX.n++; chud(); choiceGap();
 }
 function choiceEnd(){
-  const avg=RX.hits?Math.round(RX.sum/RX.hits):999, err=RX.err;
-  pushReflex("choice",avg);
+  const avg=RX.hits?Math.round(RX.sum/RX.hits):0, err=RX.err;
+  if(RX.hits) pushReflex("choice",avg);
   openOv(ovTop("🧭 Résultat")+`
     <div class="result"><div class="big">${avg} ms</div>
     <p>par bon choix · ${err} erreur${err>1?"s":""}</p>
@@ -762,7 +843,7 @@ function playGng(){
     <div class="arena" id="arena" onpointerdown="gngTap()"></div>
     <div class="rxhud" id="ghud"><span>BALLES <b>0/25</b></span><span>FAUTES <b>0</b></span><span>RATÉES <b>0</b></span></div>
     <button class="btn ghost" onclick="closeOv()">Quitter</button>`);
-  gngGap();
+  rxCount(gngGap);
 }
 function ghud(){ const h=document.getElementById("ghud"); if(h&&RX) h.innerHTML=`<span>BALLES <b>${RX.n}/${RX.total}</b></span><span>FAUTES <b>${RX.fa}</b></span><span>RATÉES <b>${RX.missed}</b></span>`; }
 function gngGap(){
@@ -786,7 +867,7 @@ function gngGap(){
   },500+Math.random()*1200);
 }
 function gngTap(){
-  if(!RX||RX.g!=="n") return;
+  if(!RX||RX.g!=="n"||RX.phase==="count") return;
   if(RX.phase==="gap"){ RX.fa++; ghud(); return; }
   clearTimeout(RX.to2);
   if(RX.nogo) RX.fa++;
@@ -794,8 +875,8 @@ function gngTap(){
   RX.n++; ghud(); gngGap();
 }
 function gngEnd(){
-  const avg=RX.hits?Math.round(RX.sum/RX.hits):999, fa=RX.fa, missed=RX.missed;
-  pushReflex("gonogo",avg);
+  const avg=RX.hits?Math.round(RX.sum/RX.hits):0, fa=RX.fa, missed=RX.missed;
+  if(RX.hits) pushReflex("gonogo",avg);
   openOv(ovTop("🚦 Résultat")+`
     <div class="result"><div class="big">${avg} ms</div>
     <p>sur balles vertes · ${fa} faute${fa>1?"s":""} (rouge tapée ou trop tôt) · ${missed} verte${missed>1?"s":""} ratée${missed>1?"s":""}</p>

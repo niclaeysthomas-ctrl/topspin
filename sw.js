@@ -1,5 +1,5 @@
 // TOPSPIN — service worker : cache-first, app 100 % hors-ligne
-const CACHE = "topspin-v2";
+const CACHE = "topspin-v3";
 const ASSETS = [
   "./",
   "./index.html",
