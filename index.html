@@ -129,6 +129,26 @@
   #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
   #toast b{color:var(--acc)}
 
+  .arena{position:relative;height:54vh;min-height:330px;background:var(--bg2);border:1px solid var(--line);border-radius:16px;overflow:hidden;touch-action:manipulation;user-select:none;-webkit-user-select:none;cursor:pointer}
+  .arena .msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px;pointer-events:none}
+  .arena .big2{font-family:var(--mono);font-size:38px;font-weight:800}
+  .arena .big2.bad{color:var(--bad)} .arena .big2.ok{color:var(--ok)}
+  .lights{display:flex;gap:10px;justify-content:center;margin-bottom:8px}
+  .lights i{width:42px;height:42px;border-radius:50%;background:#222833;border:2px solid #323b4a;transition:background .1s}
+  .lights i.on{background:#e33045;border-color:#ff6b7c;box-shadow:0 0 18px #e3304599}
+  .tgt{position:absolute;width:58px;height:58px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffd9b0,var(--acc) 65%);box-shadow:0 4px 14px #0008;display:flex;align-items:center;justify-content:center;font-size:25px;z-index:3}
+  .stim{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);width:90px;height:90px;border-radius:50%;z-index:2;box-shadow:0 6px 20px #0009}
+  .stim.b{background:radial-gradient(circle at 35% 30%,#9fc0ff,var(--blu) 65%)}
+  .stim.o{background:radial-gradient(circle at 35% 30%,#ffd9b0,var(--acc) 65%)}
+  .stim.g{background:radial-gradient(circle at 35% 30%,#9df0c8,var(--ok) 65%)}
+  .stim.r{background:radial-gradient(circle at 35% 30%,#ffb0bc,var(--bad) 65%)}
+  .halfL,.halfR{position:absolute;top:0;bottom:0;width:50%;opacity:.07;pointer-events:none}
+  .halfL{left:0;background:var(--blu)} .halfR{right:0;background:var(--acc)}
+  .cornerL,.cornerR{position:absolute;bottom:10px;font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--dim);pointer-events:none}
+  .cornerL{left:12px} .cornerR{right:12px}
+  .rxhud{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11.5px;color:var(--dim);margin-top:8px;letter-spacing:.4px}
+  .rxhud b{color:var(--acc)}
+
   .gift{background:linear-gradient(160deg,#14202e,#1c1712);border:1px solid #3a3020;border-radius:18px;padding:26px 20px;text-align:center}
   .gift .ball{font-size:46px}
   .gift h3{font-size:20px;font-weight:900;font-style:italic;margin:10px 0 8px}
@@ -152,6 +172,7 @@
   <button data-v="exos"><i>📚</i>Exos</button>
   <button data-v="matchs"><i>🏆</i>Matchs</button>
   <button data-v="carnet"><i>📈</i>Carnet</button>
+  <button data-v="reflex"><i>🎮</i>Réflexes</button>
   <button data-v="plus"><i>⚙️</i>Plus</button>
 </div></nav>
 
@@ -159,12 +180,13 @@
 <script>
 // ================= ÉTAT =================
 const KEY="topspin_v1";
-const DEF={name:"",goal:4,sessions:[],matches:[],check:{date:"",arr:[]},welcomed:false};
+const DEF={name:"",goal:4,sessions:[],matches:[],check:{date:"",arr:[]},welcomed:false,reflex:{f1:[],targets:[],choice:[],gonogo:[]}};
 let S=load();
 function load(){
   let s={}; try{ s=JSON.parse(localStorage.getItem(KEY))||{}; }catch(e){}
   const o=Object.assign({},DEF,s);
   o.sessions=s.sessions||[]; o.matches=s.matches||[]; o.check=s.check||{date:"",arr:[]};
+  o.reflex=Object.assign({f1:[],targets:[],choice:[],gonogo:[]},s.reflex||{});
   return o;
 }
 function save(){ localStorage.setItem(KEY,JSON.stringify(S)); }
@@ -183,12 +205,12 @@ let view="seance";
 function nav(v){ view=v; document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v)); render(); window.scrollTo(0,0); }
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>nav(b.dataset.v));
 function render(){
-  document.getElementById("main").innerHTML=({seance:vSeance,exos:vExos,matchs:vMatchs,carnet:vCarnet,plus:vPlus})[view]();
+  document.getElementById("main").innerHTML=({seance:vSeance,exos:vExos,matchs:vMatchs,carnet:vCarnet,reflex:vReflex,plus:vPlus})[view]();
   header();
 }
 const ov=document.getElementById("ov"),ovin=document.getElementById("ovin");
 function openOv(html){ ovin.innerHTML=html; ov.classList.add("on"); ov.scrollTop=0; }
-function closeOv(){ ov.classList.remove("on"); stopClock(); render(); }
+function closeOv(){ ov.classList.remove("on"); stopClock(); rxStop(); render(); }
 function ovTop(title,timer){ return `<div class="top"><button class="x" onclick="closeOv()">✕</button><b>${title}</b>${timer?'<span class="timer" id="ovclock">00:00</span>':""}</div>`; }
 
 // ================= GÉNÉRATEUR DE SÉANCE =================
@@ -550,6 +572,238 @@ function tickTT(){
   if(TT.phase==="work"&&TT.left<=3&&TT.left>0) beep(660,90);
 }
 function stopTT(){ if(TT.iv){clearInterval(TT.iv);TT.iv=null;} TT.on=false; }
+
+// ================= RÉFLEXES =================
+let RX=null;
+function rxStop(){ if(RX){ clearInterval(RX.iv); clearTimeout(RX.to); clearTimeout(RX.to2); RX=null; } }
+function pushReflex(g,v){ S.reflex[g].unshift({d:today(),v}); S.reflex[g]=S.reflex[g].slice(0,100); save(); }
+function rstat(g){
+  const a=S.reflex[g]; if(!a.length) return null;
+  const best=Math.min(...a.map(x=>x.v));
+  const avg=Math.round(a.slice(0,10).reduce((s,x)=>s+x.v,0)/Math.min(a.length,10));
+  return {best,avg,n:a.length};
+}
+const RXGAMES=[
+ {id:"f1",ico:"🏎️",name:"Feu de F1",desc:"5 feux s'allument puis s'éteignent d'un coup : tape à l'extinction. Faux départ pénalisé, comme en course.",fn:"playF1"},
+ {id:"targets",ico:"🏓",name:"Chasse aux balles",desc:"20 balles surgissent une à une, n'importe où. Œil + main, le duo qui fait les demi-volées.",fn:"playTgt"},
+ {id:"choice",ico:"🧭",name:"Choix CD / Revers",desc:"Bleue → moitié gauche (revers). Orange → moitié droite (coup droit). Décider ET réagir — le réflexe du pongiste.",fn:"playChoice"},
+ {id:"gonogo",ico:"🚦",name:"Go / No-Go",desc:"Verte : frappe vite. Rouge : ne bouge pas. L'art de ne pas attaquer la mauvaise balle.",fn:"playGng"}
+];
+function vReflex(){
+  return `<h1 class="page">Salle de réflexes</h1>
+  <div class="sub">Le temps de réaction se travaille comme un coup droit : souvent, peu, mesuré. 2-3 minutes par jour — et regarde la moyenne descendre.</div>`+
+  RXGAMES.map(g=>{
+    const st=rstat(g.id);
+    return `<div class="card" style="padding:14px">
+      <div style="display:flex;gap:11px;align-items:center">
+        <div style="font-size:26px">${g.ico}</div>
+        <div style="flex:1"><b style="font-size:15px">${g.name}</b>
+          <div style="color:var(--dim);font-size:12.5px;line-height:1.4;margin-top:2px">${g.desc}</div></div>
+      </div>
+      <div class="rxhud" style="margin-top:10px">
+        <span>RECORD <b>${st?st.best+" ms":"—"}</b></span>
+        <span>MOY. (10) <b>${st?st.avg+" ms":"—"}</b></span>
+        <span>ESSAIS <b>${st?st.n:0}</b></span>
+      </div>
+      <button class="btn" style="margin-top:10px;padding:11px" onclick="${g.fn}()">Jouer</button>
+    </div>`;
+  }).join("");
+}
+function verdictRT(ms){ return ms<200?"Réflexe d'élite.":ms<250?"Très rapide.":ms<300?"Solide.":ms<380?"Correct — ça se travaille.":"Réveille-toi, la balle est déjà passée."; }
+
+// ---- Feu de F1 ----
+function playF1(){ rxStop(); RX={g:"f1",tries:[],fs:0,phase:"ready"}; f1Draw("—","Touche la zone pour armer les feux",""); }
+function f1Draw(val,hint,cls){
+  openOv(ovTop("🏎️ Feu de F1")+`
+    <div class="sub">Tape à l'extinction des 5 feux. Taper avant = faux départ. <b>5 départs par session.</b></div>
+    <div class="arena" onpointerdown="f1Tap()">
+      <div class="msg">
+        <div class="lights" id="lts">${"<i></i>".repeat(5)}</div>
+        <div class="big2 ${cls}" id="f1v">${val}</div>
+        <div class="sub" style="margin:0" id="f1h">${hint}</div>
+      </div>
+    </div>
+    <div class="rxhud"><span>DÉPART <b>${RX.tries.length+1}/5</b></span><span>FAUX DÉPARTS <b>${RX.fs}</b></span><span>${RX.tries.map(t=>t+"ms").join(" · ")||"—"}</span></div>
+    <button class="btn ghost" onclick="closeOv()">Quitter</button>`);
+}
+function f1Tap(){
+  if(!RX||RX.g!=="f1") return;
+  if(RX.phase==="ready"){
+    RX.phase="arming";
+    document.getElementById("f1v").textContent="";
+    document.getElementById("f1h").textContent="Prêt…";
+    const lts=[...document.querySelectorAll("#lts i")];
+    let k=0;
+    RX.iv=setInterval(()=>{
+      if(!document.getElementById("lts")){ rxStop(); return; }
+      lts[k].classList.add("on"); k++;
+      if(k===5){
+        clearInterval(RX.iv);
+        RX.to=setTimeout(()=>{
+          lts.forEach(x=>x.classList.remove("on"));
+          RX.t0=performance.now(); RX.phase="go";
+        },800+Math.random()*2000);
+      }
+    },520);
+  } else if(RX.phase==="arming"){
+    clearInterval(RX.iv); clearTimeout(RX.to);
+    RX.fs++; RX.phase="ready";
+    f1Draw("FAUX DÉPART","Comme en course : ça coûte cher. Touche pour recommencer.","bad");
+  } else if(RX.phase==="go"){
+    const ms=Math.round(performance.now()-RX.t0);
+    RX.tries.push(ms); pushReflex("f1",ms);
+    if(RX.tries.length>=5) f1End();
+    else { RX.phase="ready"; f1Draw(ms+" ms",verdictRT(ms)+" Touche pour le départ suivant.",ms<250?"ok":""); }
+  }
+}
+function f1End(){
+  const best=Math.min(...RX.tries), avg=Math.round(RX.tries.reduce((a,b)=>a+b,0)/RX.tries.length);
+  const rec=rstat("f1").best===best&&rstat("f1").n>5;
+  openOv(ovTop("🏎️ Résultat")+`
+    <div class="result"><div class="big">${best} ms</div>
+    <p>meilleur départ · moyenne ${avg} ms · ${RX.fs} faux départ${RX.fs>1?"s":""}${rec?" · <b style='color:var(--acc)'>RECORD 🏆</b>":""}</p>
+    <p>${verdictRT(avg)}</p></div>
+    <button class="btn" onclick="playF1()">Rejouer</button>
+    <button class="btn ghost" onclick="closeOv()">Fermer</button>`);
+  RX=null;
+}
+
+// ---- Chasse aux balles ----
+function playTgt(){
+  rxStop(); RX={g:"t",n:0,total:20,miss:0,sum:0,t0:0};
+  openOv(ovTop("🏓 Chasse aux balles")+`
+    <div class="sub">20 balles, une à la fois. Touche-les le plus vite possible — les taps à côté comptent contre toi.</div>
+    <div class="arena" id="arena" onpointerdown="tgtBg()"></div>
+    <div class="rxhud" id="thud"><span>BALLES <b>0/20</b></span><span>À CÔTÉ <b>0</b></span></div>
+    <button class="btn ghost" onclick="closeOv()">Quitter</button>`);
+  setTimeout(tgtNext,400);
+}
+function tgtBg(){ if(RX&&RX.g==="t"&&RX.n<RX.total){ RX.miss++; tgtHud(); } }
+function tgtHud(){ const h=document.getElementById("thud"); if(h&&RX) h.innerHTML=`<span>BALLES <b>${RX.n}/${RX.total}</b></span><span>À CÔTÉ <b>${RX.miss}</b></span>`; }
+function tgtNext(){
+  if(!RX||RX.g!=="t") return;
+  const a=document.getElementById("arena"); if(!a){ rxStop(); return; }
+  const old=a.querySelector(".tgt"); if(old) old.remove();
+  if(RX.n>=RX.total) return tgtEnd();
+  const t=document.createElement("div"); t.className="tgt"; t.textContent="🏓";
+  t.style.left=(6+Math.random()*Math.max(10,a.clientWidth-70))+"px";
+  t.style.top=(6+Math.random()*Math.max(10,a.clientHeight-70))+"px";
+  t.onpointerdown=e=>{ e.stopPropagation(); if(!RX)return; RX.sum+=performance.now()-RX.t0; RX.n++; tgtHud(); tgtNext(); };
+  a.appendChild(t); RX.t0=performance.now();
+}
+function tgtEnd(){
+  const avg=Math.round(RX.sum/RX.total), miss=RX.miss;
+  pushReflex("targets",avg);
+  openOv(ovTop("🏓 Résultat")+`
+    <div class="result"><div class="big">${avg} ms</div>
+    <p>par balle · ${miss} tap${miss>1?"s":""} à côté</p>
+    <p>${avg<550?"Main de compétiteur.":avg<750?"Rapide et propre.":avg<950?"Correct — la précision d'abord, la vitesse suit.":"Les yeux cherchent la balle : ils doivent balayer la zone en continu."}</p></div>
+    <button class="btn" onclick="playTgt()">Rejouer</button>
+    <button class="btn ghost" onclick="closeOv()">Fermer</button>`);
+  RX=null;
+}
+
+// ---- Choix CD / Revers ----
+function playChoice(){
+  rxStop(); RX={g:"c",n:0,total:20,err:0,sum:0,hits:0,phase:"gap"};
+  openOv(ovTop("🧭 Choix CD / Revers")+`
+    <div class="sub">Balle <b style="color:var(--blu)">bleue</b> → touche la moitié <b>gauche</b> (revers). Balle <b style="color:var(--acc)">orange</b> → moitié <b>droite</b> (coup droit). Taper pendant l'attente = erreur.</div>
+    <div class="arena" id="arena" onpointerdown="choiceTap(event)">
+      <div class="halfL"></div><div class="halfR"></div>
+      <div class="cornerL">◀ REVERS</div><div class="cornerR">COUP DROIT ▶</div>
+    </div>
+    <div class="rxhud" id="chud"><span>BALLES <b>0/20</b></span><span>ERREURS <b>0</b></span></div>
+    <button class="btn ghost" onclick="closeOv()">Quitter</button>`);
+  choiceGap();
+}
+function chud(){ const h=document.getElementById("chud"); if(h&&RX) h.innerHTML=`<span>BALLES <b>${RX.n}/${RX.total}</b></span><span>ERREURS <b>${RX.err}</b></span>`; }
+function choiceGap(){
+  if(!RX||RX.g!=="c") return;
+  RX.phase="gap";
+  const a=document.getElementById("arena"); if(!a){ rxStop(); return; }
+  const s=a.querySelector(".stim"); if(s) s.remove();
+  if(RX.n>=RX.total) return choiceEnd();
+  RX.to=setTimeout(()=>{
+    if(!RX||RX.g!=="c") return;
+    const a2=document.getElementById("arena"); if(!a2){ rxStop(); return; }
+    RX.side=Math.random()<0.5?"b":"o";
+    const st=document.createElement("div"); st.className="stim "+RX.side;
+    a2.appendChild(st);
+    RX.t0=performance.now(); RX.phase="stim";
+  },500+Math.random()*1100);
+}
+function choiceTap(e){
+  if(!RX||RX.g!=="c") return;
+  if(RX.phase==="gap"){ RX.err++; chud(); return; }
+  const a=document.getElementById("arena");
+  const mid=a.getBoundingClientRect().left+a.clientWidth/2;
+  const left=e.clientX<mid;
+  const good=(RX.side==="b"&&left)||(RX.side==="o"&&!left);
+  if(good){ RX.sum+=performance.now()-RX.t0; RX.hits++; } else RX.err++;
+  RX.n++; chud(); choiceGap();
+}
+function choiceEnd(){
+  const avg=RX.hits?Math.round(RX.sum/RX.hits):999, err=RX.err;
+  pushReflex("choice",avg);
+  openOv(ovTop("🧭 Résultat")+`
+    <div class="result"><div class="big">${avg} ms</div>
+    <p>par bon choix · ${err} erreur${err>1?"s":""}</p>
+    <p>${err>4?"Trop d'erreurs : la vitesse sans le bon choix, c'est un smash dans le filet.":avg<420?"Décision d'élite — c'est LE réflexe qui gagne les points au corps.":avg<520?"Très bon. La décision est déjà prise quand la balle arrive.":avg<650?"Correct — décide pendant le vol, pas après le rebond.":"Tu regardes la balle puis tu réfléchis : inverse l'ordre."}</p></div>
+    <button class="btn" onclick="playChoice()">Rejouer</button>
+    <button class="btn ghost" onclick="closeOv()">Fermer</button>`);
+  RX=null;
+}
+
+// ---- Go / No-Go ----
+function playGng(){
+  rxStop(); RX={g:"n",n:0,total:25,fa:0,missed:0,sum:0,hits:0,phase:"gap"};
+  openOv(ovTop("🚦 Go / No-Go")+`
+    <div class="sub">Balle <b style="color:var(--ok)">verte</b> : tape le plus vite possible. Balle <b style="color:var(--bad)">rouge</b> : ne touche RIEN. 25 balles, environ 1 rouge sur 4.</div>
+    <div class="arena" id="arena" onpointerdown="gngTap()"></div>
+    <div class="rxhud" id="ghud"><span>BALLES <b>0/25</b></span><span>FAUTES <b>0</b></span><span>RATÉES <b>0</b></span></div>
+    <button class="btn ghost" onclick="closeOv()">Quitter</button>`);
+  gngGap();
+}
+function ghud(){ const h=document.getElementById("ghud"); if(h&&RX) h.innerHTML=`<span>BALLES <b>${RX.n}/${RX.total}</b></span><span>FAUTES <b>${RX.fa}</b></span><span>RATÉES <b>${RX.missed}</b></span>`; }
+function gngGap(){
+  if(!RX||RX.g!=="n") return;
+  RX.phase="gap";
+  const a=document.getElementById("arena"); if(!a){ rxStop(); return; }
+  const s=a.querySelector(".stim"); if(s) s.remove();
+  if(RX.n>=RX.total) return gngEnd();
+  RX.to=setTimeout(()=>{
+    if(!RX||RX.g!=="n") return;
+    const a2=document.getElementById("arena"); if(!a2){ rxStop(); return; }
+    RX.nogo=Math.random()<0.28;
+    const st=document.createElement("div"); st.className="stim "+(RX.nogo?"r":"g");
+    a2.appendChild(st);
+    RX.t0=performance.now(); RX.phase="stim";
+    RX.to2=setTimeout(()=>{
+      if(!RX||RX.g!=="n"||RX.phase!=="stim") return;
+      if(!RX.nogo) RX.missed++;
+      RX.n++; ghud(); gngGap();
+    },850);
+  },500+Math.random()*1200);
+}
+function gngTap(){
+  if(!RX||RX.g!=="n") return;
+  if(RX.phase==="gap"){ RX.fa++; ghud(); return; }
+  clearTimeout(RX.to2);
+  if(RX.nogo) RX.fa++;
+  else { RX.sum+=performance.now()-RX.t0; RX.hits++; }
+  RX.n++; ghud(); gngGap();
+}
+function gngEnd(){
+  const avg=RX.hits?Math.round(RX.sum/RX.hits):999, fa=RX.fa, missed=RX.missed;
+  pushReflex("gonogo",avg);
+  openOv(ovTop("🚦 Résultat")+`
+    <div class="result"><div class="big">${avg} ms</div>
+    <p>sur balles vertes · ${fa} faute${fa>1?"s":""} (rouge tapée ou trop tôt) · ${missed} verte${missed>1?"s":""} ratée${missed>1?"s":""}</p>
+    <p>${fa>4?"Tu tapes tout ce qui bouge — en match, ça s'appelle attaquer les balles pièges.":avg<350?"Frein et accélérateur parfaitement séparés. Rare.":avg<450?"Très bon contrôle.":avg<550?"Correct — la retenue coûte encore de la vitesse.":"La peur de la rouge te ralentit sur les vertes : engage-toi, quitte à te tromper."}</p></div>
+    <button class="btn" onclick="playGng()">Rejouer</button>
+    <button class="btn ghost" onclick="closeOv()">Fermer</button>`);
+  RX=null;
+}
 
 // ================= BIENVENUE (CADEAU) =================
 function welcome(){
